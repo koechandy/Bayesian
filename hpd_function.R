@@ -1,5 +1,5 @@
 # updated function for generating posterior distributions
-fx <- function(x, mu, priorPars, w, tau, n,alpha_level) {
+fx <- function(x, mu, priorPars, w, tau, n) {
   
   # Check that priorPars is a matrix and w is a vector
   if (!is.matrix(priorPars) || !is.vector(w)) {
@@ -59,12 +59,12 @@ fx <- function(x, mu, priorPars, w, tau, n,alpha_level) {
 
 ## Example usage
 # Declare the parameters outside the function
-x <- seq(-5, 20, by = 0.01)
-priorPars <- matrix(c(5, 2, 1/sqrt(0.25), 1/sqrt(.11)), nrow = 2, byrow = TRUE)
-w <- c(0.48, 0.52)  
-mu <- 206.3 / 40
-tau <- 1 / sqrt(0.4)
-n <- 40
+x <- seq(-5, 30, by = 0.01)
+priorPars <- matrix(c(3,9,1/sqrt(.25),sqrt(1)),nrow =2,byrow = T)
+w <- c(0.75,0.25)
+mu <- 206.3/20
+tau <- 1/sqrt(0.4) 
+n <- 20
 alpha_level <- 0.90
 
 # # Call the function with the declared parameters
@@ -76,7 +76,7 @@ rt_list <- list()
 alpha <- 0
 
 for (i in 1:length(y)) {
-  roots <- rootSolve::uniroot.all(function(x) fx(x, mu, priorPars, w, tau, n,alpha_level) - y[i], lower = min(x), upper = max(x))
+  roots <- rootSolve::uniroot.all(function(x) fx(x, mu, priorPars, w, tau, n) - y[i], lower = min(x), upper = max(x))
   
   
   rt_list[[i]] <- list(y.val = y[i], roots = roots)
