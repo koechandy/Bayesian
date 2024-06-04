@@ -1,3 +1,5 @@
+
+
 if (!requireNamespace("rootSolve", quietly = TRUE)) {
   install.packages("rootSolve")
 }
@@ -54,23 +56,28 @@ fx <- function(x, priorPars, w, mu, tau, n) {
   ##---posterior densities for each component i aggregated------------------
   posterior_vals <- 0
   for (i in 1:length(w)) {
-    posterior_vals <- posterior_vals + post.w[, i]*dnorm(x, mean = post.mean[, i], sd = sqrt(post.var[i]))
+    posterior_vals <- posterior_vals + post.w[, i] * dnorm(x, mean = post.mean[, i], sd = sqrt(post.var[i]))
   }
-  return(list(f = posterior_vals, post.w=post.w))
+  return(list(f = posterior_vals, post.w = post.w, post.m = post.mean, post.s = sqrt(post.var)))
 }
 
-##----------- Declaring the parameters ------------------------------#
-x <- seq(-2, 2, by = 0.01)
-priorPars <- matrix(c(0,0,(1/sqrt(50)),10),nrow =2,byrow = T)
-w <- c(0.5,0.5)
+#----------- Declaring the parameters ------------------------------#
+x <- seq(-2, 2, by = 0.001)
+priorPars <- matrix(c(0, 0, (1 / sqrt(50)), 10), nrow = 2, byrow = TRUE)
+w <- c(0.5, 0.5)
 mu <- 0.78
 tau <- 1
 n <- 20
 
-alpha_level <- 0.60
+alpha_level <- 0.90
 
 # Call the function with the declared parameters
 y <- seq(max(fx(x, priorPars, w, mu, tau, n)$f), 0, -0.001)
+
+alpha <- 0
+post.w <- fx(x, priorPars, w, mu, tau, n)$post.w
+post.m <- fx(x, priorPars, w, mu, tau, n)$post.m
+post.s <- fx(x, priorPars, w, mu, tau, n)$post.s
 
 rt_list <- list()
 for (i in 1:length(y)) {
@@ -79,24 +86,19 @@ for (i in 1:length(y)) {
   rt_list[[i]] <- list(y.val = y[i], roots = roots)
   
   num_roots <- length(rt_list[[i]]$roots)
-  alpha <- 0
-  alpha_sum <- 0
   
-  if (num_roots == 2 || num_roots == 4) {
-    for (j in seq(1, num_roots, by = 2)) {
-      for (k in 1:length(w)) {
-
-        alpha_sum <- alpha_sum + sum(fx(x, priorPars, w, mu, tau, n)$post.w *
-                                       (pnorm(rt_list[[i]]$roots[j + 1], priorPars[1, k], priorPars[2, k]) - 
-                                          pnorm(rt_list[[i]]$roots[j], priorPars[1, k], priorPars[2, k])))
-      }
-    }
-    alpha<- alpha_sum
+  if (num_roots == 2) {
+    alpha[i] <- sum(post.w[1] * pnorm(rt_list[[i]]$roots[2], post.m[1], post.s[1]) -  post.w[1] * pnorm(rt_list[[i]]$roots[1], post.m[1], post.s[1]),
+                    post.w[2] * pnorm(rt_list[[i]]$roots[2], post.m[2], post.s[2]) -  post.w[2] * pnorm(rt_list[[i]]$roots[1], post.m[2], post.s[2]))
+  } else if (num_roots == 4) {
+    alpha[i] <- sum(post.w[1] * pnorm(rt_list[[i]]$roots[2], post.m[1], post.s[1]) -  post.w[1] * pnorm(rt_list[[i]]$roots[1], post.m[1], post.s[1]),
+                    post.w[2] * pnorm(rt_list[[i]]$roots[4], post.m[2], post.s[2]) -  post.w[2] * pnorm(rt_list[[i]]$roots[3], post.m[2], post.s[2]))
   } else {
-    alpha<- NA  # when the number of roots is neither 2 nor 4
+    alpha[i] <- NA  # Handle case when number of roots is neither 2, 4, nor 6
   }
   
-  rt_list[[i]] <- list(y.val = y[i], roots = roots, alpha = alpha)
+  rt_list[[i]] <- list(y.val = y[i], roots = roots, alpha = alpha[i])
+  
 }
 
 alphal <- do.call(c, lapply(rt_list, function(y) y$alpha))
@@ -117,7 +119,7 @@ up.lim <- max(c(cmp, posterior_density))
 # Plot the posterior distribution and the HPD interval
 plot(x, cmp, type = "l", col = "darkorange", lty = 1, lwd = 2,
      main = "Mixture prior components and posterior density plots",
-     xlab = expression(theta), ylab = "Density",ylim=c(0,up.lim))
+     xlab = expression(theta), ylab = "Density", ylim = c(0, 3))
 
 colors <- c("blue", "purple", "darkgreen", "darkcyan", "magenta")
 for (i in 1:length(w)) {
@@ -142,7 +144,7 @@ if (length(hpd) %in% c(2, 4)) {
   hpd_segments(hpd)
 }
 
-legend_labels <- c(paste0("Component ", 1:length(w), ": N(", priorPars[1, ], ",", round(1/priorPars[2, ], 2), ")"),
+legend_labels <- c(paste0("Component ", 1:length(w), ": N(", priorPars[1, ], ",", round(1 / priorPars[2, ], 2), ")"),
                    "Mixture prior density", "Posterior mixture density", "HPD Interval")
 
 legend("topleft", lty = c(rep(2, length(w)), 1, 1), 
@@ -151,11 +153,12 @@ legend("topleft", lty = c(rep(2, length(w)), 1, 1),
 
 # Return the roots equivalent to alpha level
 if (length(hpd) == 2) {
-  cat(alpha_level * 100, "% HPDI is:[", hpd[1], ",", hpd[2], "]\n")
+  cat(alpha_level * 100, "% HPDI is:[",hpd[1],",",hpd[2],"]\n")
 } else if (length(hpd) == 4) {
-  cat(alpha_level * 100, "% HPDI is:[", hpd[1], ",", hpd[2], "] and [", hpd[3], ",", hpd[4], "]\n")
+  cat(alpha_level * 100, "% HPDI is:[",hpd[1],",",hpd[2],"] and [",hpd[3],",",hpd[4],"]\n")
 } else {
   cat("No HPDI for", alpha_level * 100, "%\n")
 }
+
 
 
