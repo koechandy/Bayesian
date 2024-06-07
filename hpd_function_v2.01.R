@@ -38,16 +38,23 @@ fx <- function(x, priorPars, w, mu, tau, n) {
   return(list(f = posterior_vals, post.w = post.w, post.m = post.mean, post.s = sqrt(post.var)))
 }
 
-#----------- Declaring the parameters ------------------------------#
+## ----------- Declaring the parameters ------------------------------#
 priorPars <- matrix(c(0, 0, (1 / sqrt(50)), 10), nrow = 2, byrow = TRUE)
 w <- c(0.5, 0.5)
 mu <- 0.78
 tau <- 1
 n <- 20
 
-lo.v<-floor(min(c(priorPars[1,],mu))) + ceiling(max(c(priorPars[2,],tau)))
-up.v<-ceiling(max(c(priorPars[1,],mu))) + ceiling(max(c(priorPars[2,],tau)))
-x <- seq(-lo.v,up.v , by = 0.001)
+
+# priorPars <- matrix(c(7, 9, 11, 1/sqrt(1), 1/sqrt(0.25), 1/sqrt(1)), nrow = 2, byrow = TRUE)
+# w <- c(0.42, 0.23, 0.35)
+# mu <- 206.3/20
+# tau <- 1/sqrt(0.4)
+# n <- 20
+
+x.lo<-floor(min(c(priorPars[1,],mu))) + ceiling(max(c(priorPars[2,],tau)))
+x.up<-ceiling(max(c(priorPars[1,],mu))) + ceiling(max(c(priorPars[2,],tau)))
+x <- seq(-x.lo, x.up, by = 0.0001)
 y <- seq(max(fx(x, priorPars, w, mu, tau, n)$f), 0, -0.0001)
 
 
@@ -56,11 +63,11 @@ post.m <- fx(x, priorPars, w, mu, tau, n)$post.m
 post.s <- fx(x, priorPars, w, mu, tau, n)$post.s
 postPars <- matrix(c(post.m, post.s), nrow = 2, byrow = TRUE)
 
-
 alpha_level <- 0.80
 
+
 my_alpha <- function(y, priorPars, w, mu, tau, n, postPars, alpha_level) {
-  roots <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - y, lower = min(x), upper = max(x))
+  roots <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - y, lower = min(x), upper = max(x),tol = 1e-10)
   
   num_roots <- length(roots)
   alpha <- 0
@@ -72,11 +79,11 @@ my_alpha <- function(y, priorPars, w, mu, tau, n, postPars, alpha_level) {
       post.w[j] * pnorm(roots[2], postPars[1, j], postPars[2, j]) - post.w[j] * pnorm(roots[1], postPars[1, j], postPars[2, j])
     }))
   } else if (num_roots == 4) {
-    for (j in seq(1, num_roots, by = 2)) {
-      z <- (j + 1) / 2
+    for (k in seq(1, num_roots, by = 2)) {
+      z <- (k + 1) / 2
       post.w <- fx(roots, priorPars, w, mu, tau, n)$post.w
-      alpha_sum <- alpha_sum + (post.w[z] * pnorm(roots[j + 1], postPars[1, z], postPars[2, z]) -
-                                  post.w[z] * pnorm(roots[j], postPars[1, z], postPars[2, z]))
+      alpha_sum <- alpha_sum + (post.w[z] * pnorm(roots[k + 1], postPars[1, z], postPars[2, z]) -
+                                  post.w[z] * pnorm(roots[k], postPars[1, z], postPars[2, z]))
     }
     alpha <- alpha_sum
   } else {
@@ -87,15 +94,17 @@ my_alpha <- function(y, priorPars, w, mu, tau, n, postPars, alpha_level) {
 }
 
 
-objectivefx <- function(y, ...) { alpha <- my_alpha(y, ...)
+objectivefx <- function(y, ...) { 
+  alpha <- my_alpha(y, ...)
   abs(alpha - alpha_level)
 }
 
 opt.res <- optim(0, objectivefx, method = "Brent", lower = min(y), upper = max(y), 
-                    priorPars = priorPars, w = w, mu = mu, tau = tau, n = n, postPars = postPars, alpha_level = alpha_level)
+                    priorPars = priorPars, w = w, mu = mu, tau = tau, n = n, 
+                 postPars = postPars, alpha_level = alpha_level)
 
 #--------------- roots corresponding to the minimum absolute difference--------
-hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - opt.res$par, lower = min(x), upper = max(x))
+hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - opt.res$par, lower = min(x), upper = max(x),tol = 1e-10)
 
 # Combined mixture prior
 cmp <- 0
@@ -108,14 +117,15 @@ posterior_density <- fx(x, priorPars, w, mu, tau, n)$f
 #--------------------Determine y-axis upper limit---------------------------
 up.lim <- max(c(cmp, posterior_density))
 
-x.ll<-floor(range(density(posterior_density)$x)[1])
-x.ul<-ceiling(range(density(posterior_density)$x)[2])
+x.ll<-floor(range(density(post.m)$x)[1])-2
+x.ul<-ceiling(range(density(post.m)$x)[2])+2
 
 #--------------Plot the posterior distribution and the HPD interval---------
 plot(x, cmp, type = "l", col = "darkorange", lty = 1, lwd = 2,
      xlab = expression(theta), ylab = "Density",xlim=c(x.ll,x.ul), ylim = c(0, up.lim))
 
 colors <- c("blue", "purple", "darkgreen", "darkcyan", "magenta")
+
 for (i in 1:length(post.w)) {
   lines(x, post.w[i]*dnorm(x, postPars[1, i], postPars[2, i]), type = "l", 
         col = colors[i], lty = 2, lwd = 2)
