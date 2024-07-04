@@ -8,13 +8,13 @@ if (!requireNamespace("rootSolve", quietly = TRUE)) {
   install.packages("rootSolve")
 }
 
-
 library(shiny)
 library(bslib)
 library(rootSolve)
 
-# Define the hpdi function
-hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-1, 2)) {
+# Define the hpdi function (same as your existing function)
+options(digits = 5)
+hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-2, 2)) {
   options(scipen = 999)
   
   fx <- function(x, priorPars, w, mu, tau, n) {
@@ -49,8 +49,8 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-1, 2
     return(list(f = posterior_vals, post.w = post.w, post.m = post.mean, post.s = sqrt(post.var)))
   }
   
-  x <- seq(x_range[1], x_range[2], by = 0.0001)
-  y <- seq(max(fx(x, priorPars, w, mu, tau, n)$f), 0, by = -0.0001)
+  x <- seq(x_range[1], x_range[2],by = 0.001)
+  y <- seq(max(fx(x, priorPars, w, mu, tau, n)$f), 0, by = -0.001)
   post.w <- fx(x, priorPars, w, mu, tau, n)$post.w
   post.m <- fx(x, priorPars, w, mu, tau, n)$post.m
   post.s <- fx(x, priorPars, w, mu, tau, n)$post.s
@@ -58,7 +58,8 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-1, 2
   
   my_alpha <- function(y) {
     
-    roots <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - y, lower = min(x), upper = max(x), tol = 1e-10)
+    roots <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - y, lower = min(x), upper = max(x), 
+                                    tol = 1e-10,maxiter = 10000, trace = 0, n = 100000)
     
     num_roots <- length(roots)
     alpha <- 0
@@ -76,22 +77,37 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-1, 2
         (post.w[j] * pnorm(roots[2], postPars[1, j], postPars[2, j]) - post.w[j] * pnorm(roots[1], postPars[1, j], postPars[2, j])) +
           (post.w[j] * pnorm(roots[4], postPars[1, j], postPars[2, j]) - post.w[j] * pnorm(roots[3], postPars[1, j], postPars[2, j]))
       }))
+    } else if (num_roots == 6) {
+      
+      alpha <- sum(sapply(1:length(w), function(j) {
+        
+        (post.w[j] * pnorm(roots[2], postPars[1, j], postPars[2, j]) - post.w[j] * pnorm(roots[1], postPars[1, j], postPars[2, j])) +
+          (post.w[j] * pnorm(roots[4], postPars[1, j], postPars[2, j]) - post.w[j] * pnorm(roots[3], postPars[1, j], postPars[2, j])) +
+          (post.w[j] * pnorm(roots[6], postPars[1, j], postPars[2, j]) - post.w[j] * pnorm(roots[5], postPars[1, j], postPars[2, j])) 
+      }))
     } else {
-      alpha <- NA  # when the number of roots is neither 2 nor 4
+      alpha <- NA  # when the number of roots is neither 2,4 nor 6
     }
     return(alpha)
   }
   
-  objectivefx <- function(y, ...) { 
+  # al<-sapply(y, my_alpha)
+  # result_df <- data.frame(y = y, alpha = al)
+  # yn<-result_df$y[which.min(abs(result_df$alpha-alpha_level))]
+  # hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - yn, lower = min(x), upper = max(x),tol = 1e-10,maxiter = 10000, trace = 0, n = 100000)
+  # 
+  
+  objectivefx <- function(y, ...) {
     alpha <- my_alpha(y)
     abs(alpha - alpha_level)
   }
   
-  opt.res <- optim(0, objectivefx, method = "Brent", lower = min(y), upper = max(y), 
-                   priorPars = priorPars, w = w, mu = mu, tau = tau, n = n, 
+  opt.res <- optim(0, objectivefx, method = "Brent", lower = min(y), upper = max(y),
+                   priorPars = priorPars, w = w, mu = mu, tau = tau, n = n,
                    postPars = postPars, alpha_level = alpha_level)
   
-  hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - opt.res$par, lower = min(x), upper = max(x),tol = 1e-10)
+  hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - opt.res$par, lower = min(x), upper = max(x),tol = 1e-10,maxiter = 10000, trace = 0, n = 100000)
+  
   
   cmp <- 0
   
@@ -103,9 +119,9 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-1, 2
   
   up.lim <- max(c(cmp, posterior_density))
   
-  x.ll <- floor(range(density(post.m)$x)[1]) - 2
+  x.ll <- floor(range(density(post.m)$x)[1])
   
-  x.ul <- ceiling(range(density(post.m)$x)[2]) + 2
+  x.ul <- ceiling(range(density(post.m)$x)[2])
   
   plot(x, cmp, type = "l", col = "darkorange", lty = 1, lwd = 2,
        xlab = expression(theta), ylab = "Density", xlim = c(x.ll, x.ul), ylim = c(0, up.lim))
@@ -143,120 +159,119 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-1, 2
     paste0(alpha_level * 100, "% HPDI is:[", round(hpd[1], 4), ",", round(hpd[2], 4), "]")
   } else if (length(hpd) == 4) {
     paste0(alpha_level * 100, "% HPDI is:[", round(hpd[1], 4), ",", round(hpd[2], 4), "] and [", round(hpd[3], 4), ",", round(hpd[4], 4), "]")
-  } else {
+  } else if (length(hpd) == 6) {
+    paste0(alpha_level * 100, "% HPDI is:[", round(hpd[1], 4), ",", round(hpd[2], 4), "] and [", round(hpd[3], 4), ",", round(hpd[4], 4), "] and [", round(hpd[5], 4), ",", round(hpd[6], 4), "]")
+  }else {
     paste("No HPDI for", alpha_level * 100, "%")
   }
   return(hpd_string)
 }
 
-
 ui <- fluidPage(
-  theme = bslib::bs_theme(bootswatch = "united"),
-  titlePanel("Computation of highest posterior density (HPD) intervals for robust mixture priors"),
-  tags$style(type = "text/css", "#hpd_text { 
+  navbarPage(
+    title = "HPD Interval Computation",
+    theme = bslib::bs_theme(bootswatch = "united"),
+    
+    tabPanel(
+      "Two prior components",
+      fluidPage(
+        titlePanel("HPD Interval for only two prior components"),
+        tags$head(
+          tags$style(HTML("
+          .sidebar {
+            background-color: #101010;
+            padding: 15px;
+            border-radius: 5px;
+          }
+          .well {
+            background-color: #101010;
+            border: 1px solid #ddd;
+          }
+        "))
+        ),
+        tags$style(type = "text/css", "#hpd_text_fixed { 
              color: blue; 
              text-align: center; 
              font-size: 24px; 
              font-weight: bold;
              }"),
-  sidebarLayout(
-    sidebarPanel(
-      fluidRow(
-        column(
-          width = 12,
-          helpText(
-            "Instructions: please provide values for the following parameters;",
-            HTML("the mean (&#956;) and standard deviation (&#964;) of the data (likelihood),"),
-            "the prior parameters (mu, sd) and weights (w) for the mixture priors,and finally the alpha level for which the highest posterior density interval would be computed."
+        sidebarLayout(
+          sidebarPanel(
+            h4("Likelihood parameters"),
+            numericInput("mu", HTML("mean (&#956;)"), 0.78),
+            numericInput("tau", HTML("standard deviation (&#964;)"), 1),
+            numericInput("n", "sample size:", 20),
+            numericInput("alpha_level", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
+            h4("Prior parameters"),
+            numericInput("prior11", HTML("Prior &#956;<sub>1</sub>:"), 0, step = 0.1),
+            numericInput("prior12", HTML("Prior &#956;<sub>2</sub>:"), 0, step = 0.1),
+            numericInput("prior21",  HTML("Prior &#963;<sub>1</sub>:"), 0.1414214),
+            numericInput("prior22",  HTML("Prior &#963;<sub>2</sub>:"), 10),
+            sliderInput("w1", "Prior weight 1:", value = 0.5, min = 0, max = 1),
+            sliderInput("x_range", "Range of X-values:", min = -10, max = 10, value = c(-2, 2), step = .5),
+            actionButton("compute_fixed", "Compute", class = "btn-lg btn-success"),
+            class = "sidebar" 
+          ),
+          mainPanel(
+            plotOutput("plot_fixed", width = "100%", height = "900px"),
+            verbatimTextOutput("hpd_text_fixed")
           )
-        )
-      ),
-      h4("Likelihood parameters"),
-      fluidRow(
-        column(
-          width = 12,
-          numericInput("mu", HTML("mean (&#956;)"), 0.78)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 12,
-          numericInput("tau", HTML("standard deviation (&#964;)"), 1)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 12,
-          numericInput("n", "sample size:", 20)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 12,
-          numericInput("alpha_level", "alpha level:", 0.80, min = 0, max = 1, step = 0.05)
-        )
-      ),
-      h4("Prior parameters"),
-      fluidRow(
-        column(
-          width = 6,
-          numericInput("prior11", HTML("Prior &#956;<sub>1</sub>:"), 0, step = 0.1)
-        ),
-        column(
-          width = 6,
-          numericInput("prior12", HTML("Prior &#956;<sub>2</sub>:"), 0, step = 0.1)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 6,
-          numericInput("prior21",  HTML("Prior &#963;<sub>1</sub>:"), 0.1414214)
-        ),
-        column(
-          width = 6,
-          numericInput("prior22",  HTML("Prior &#963;<sub>2</sub>:"), 10)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 12,
-          tags$div(
-            style = "display: inline-block; width: 100%;",
-            tags$label(style = "display: inline-block; width: 30%;"),
-            tags$span("prior weight 2 is computed as 1 - w1", style = "display: inline-block; width: 70%;")
-          )
-        )
-      ),
-
-      fluidRow(
-        column(
-          width = 12,
-          sliderInput("w1", "Prior weight 1:", value = 0.5, min = 0, max = 1)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 12,
-          sliderInput("x_range", "Range of X-values:", min = -10, max = 10, value = c(-1, 2),step = .5)
-        )
-      ),
-      fluidRow(
-        column(
-          width = 12,
-          actionButton("compute", "Compute", class = "btn-lg btn-success")
         )
       )
     ),
-    mainPanel(
-      plotOutput("plot", width = "100%", height = "900px"),
-      verbatimTextOutput("hpd_text")
+    
+    tabPanel(
+      "More than two prior components",
+      fluidPage(
+        titlePanel("HPD Interval for more than two prior components"),
+        
+        tags$head(
+          tags$style(HTML("
+          .sidebar {
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 5px;
+          }
+          .well {
+            background-color: #f0f0f0;
+            border: 1px solid #ddd;
+          }
+        "))
+        ),
+        tags$style(type = "text/css", "#hpd_text_gen { 
+             color: blue; 
+             text-align: center; 
+             font-size: 24px; 
+             font-weight: bold;
+             }"),
+        sidebarLayout(
+          sidebarPanel(
+            h4("Likelihood parameters"),
+            numericInput("mu_gen", HTML("mean (&#956;)"), 0.78),
+            numericInput("tau_gen", HTML("standard deviation (&#964;)"), 1),
+            numericInput("n_gen", "sample size:", 20),
+            numericInput("alpha_level_gen", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
+            h4("Prior parameters (comma-separated)"),
+            textInput("prior_mus",  HTML("Prior means (&#956;)"), "0, 0"),
+            textInput("prior_sds",  HTML("Prior standard deviations (&#964;)"), "0.1414214, 10"),
+            textInput("weights", "weights:", "0.5, 0.5"),
+            sliderInput("x_range_gen", "Range of X-values:", min = -50, max = 50, value = c(-5, 5), step = 1),
+            actionButton("compute_gen", "Compute", class = "btn-lg btn-success"),
+            class = "sidebar" 
+          ),
+          mainPanel(
+            plotOutput("plot_gen", width = "100%", height = "900px"),
+            verbatimTextOutput("hpd_text_gen")
+          )
+        )
+      )
     )
   )
 )
 
+
 server <- function(input, output, session) {
-  
-  
+  #-----------------------------Fixed Parameters---------------------------
   w1 <- reactive({
     input$w1
   })
@@ -265,8 +280,8 @@ server <- function(input, output, session) {
     1 - w1()
   })
   
-
-  observeEvent(input$compute, {
+  
+  observeEvent(input$compute_fixed, {
     
     priorPars <- matrix(c(input$prior11, input$prior12,
                           input$prior21, input$prior22), 
@@ -282,16 +297,57 @@ server <- function(input, output, session) {
     })
     
     
-    output$plot <- renderPlot({
+    output$plot_fixed <- renderPlot({
       hpdi(priorPars, c(w1(), w2()), mu, tau, n, alpha_level, x_range)
     })
     
-    output$hpd_text <- renderText({
+    output$hpd_text_fixed <- renderText({
       hpd_string()
+    })
+  })
+  
+  parse_input <- function(input) {
+    as.numeric(unlist(strsplit(input, ",")))
+  }
+  
+  #-----------------------------Generalized Parameters---------------------------
+  observeEvent(input$compute_gen, {
+    prior_mus <- parse_input(input$prior_mus)
+    prior_sds <- parse_input(input$prior_sds)
+    weights   <- parse_input(input$weights)
+    weights <- weights / sum(weights)
+    
+    #--------Check for prior means and prior sds to have the same length--------
+    if (length(prior_mus) != length(prior_sds)) {
+      showNotification("Error: The number of prior means and standard deviations must be the same.",
+                       type = "error",col="red")
+      return()
+    }
+    
+    priorPars <- matrix(c(prior_mus, prior_sds), nrow = 2, byrow = TRUE)
+    mu  <- input$mu_gen
+    tau <- input$tau_gen
+    n   <- input$n_gen
+    alpha_level <- input$alpha_level_gen
+    x_range <- input$x_range_gen
+    
+    output$plot_gen <- renderPlot({
+      tryCatch({
+        hpdi(priorPars, weights, mu, tau, n, alpha_level, x_range)
+      }, error = function(e) {
+        plot.new()
+        text(0.5, 0.5, "Error in computation: Check your inputs", col = "red")
+      })
+    })
+    
+    output$hpd_text_gen <- renderText({
+      tryCatch({
+        hpdi(priorPars, weights, mu, tau, n, alpha_level, x_range)
+      }, error = function(e) {
+        "Error in computation: Check your inputs"
+      })
     })
   })
 }
 
-
 shinyApp(ui = ui, server = server)
-
