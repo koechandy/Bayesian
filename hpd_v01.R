@@ -8,9 +8,14 @@ if (!requireNamespace("rootSolve", quietly = TRUE)) {
   install.packages("rootSolve")
 }
 
+if (!requireNamespace("DT", quietly = TRUE)) {
+  install.packages("DT")
+}
+
 library(shiny)
 library(bslib)
 library(rootSolve)
+library(DT)
 
 # Define the hpdi function (same as your existing function)
 options(digits = 5)
@@ -202,7 +207,7 @@ ui <- page_sidebar(
     # Panel with intro ----
     nav_panel("About",
               p("The WebApp rHPDI is a web application that computes the highest posterior density interval (HPDI) for a given set of informative and vague prior parameters, weights, likelihood parameters and desired alpha level."),
-              h4("Parameters:"),
+              h4("Inputs:"),
               tags$ul(
                 tags$li(HTML("prior means (&#956;)"), ": Informative and vague prior means."),
                 tags$li(HTML("prior standard deviation (&#964;)"), ": respective informative and vague prior standard deviations"),
@@ -222,14 +227,14 @@ ui <- page_sidebar(
               )
     ),
     # Panel with plot ----
-    nav_panel("Plot",         
+    nav_panel("Visualization",         
               plotOutput("plot_hpd", width = "95%", height = "900px"),
               verbatimTextOutput("hpd_text")
     ),
     
     # Panel with summary ----
     nav_panel("Summary", 
-              verbatimTextOutput("summary")
+              DT::dataTableOutput("stats")
     )
   )
 )
@@ -251,34 +256,48 @@ server <- function(input, output, session) {
     weights   <- parse_input(input$weights)
     weights <- weights / sum(weights)
     
-    
     if (length(prior_mus) != length(prior_sds)) {
       showNotification("Error: The number of prior means and standard deviations must be the same.",
                        type = "error", col = "red")
-      return()
+    }
+    
+    if (sum(weights) != 1) {
+      showNotification("Error: Check your inputs, the weights MUST add up to 1.",
+                       type = "error", col = "red")
     }
     
     priorPars <- matrix(c(prior_mus, prior_sds), nrow = 2, byrow = TRUE)
     alpha_level <- input$alpha_level
     
-    output$plot_hpd <- renderPlot({
-      tryCatch({
-        hpdi(priorPars, weights, mu(), tau(), n(), alpha_level)
-      }, error = function(e) {
-        plot.new()
-        text(0.5, 0.5, "Error in computation: Check your inputs", col = "red")
-      })
+    results <- tryCatch({
+      hpdi(priorPars, weights, mu(), tau(), n(), alpha_level)
+    }, error = function(e) {
+      showNotification("Error in computation: Check your inputs", type = "error", col = "red")
+      NULL
     })
     
-    output$hpd_text <- renderText({
-      tryCatch({
-        hpdi(priorPars, weights, mu(), tau(), n(), alpha_level)[[1]]
-      }, error = function(e) {
-        showNotification("Error in computation: Check your inputs", type = "error", col = "red")
-        NULL
+    if (!is.null(results)) {
+      output$plot_hpd <- renderPlot({
+        hpdi(priorPars, weights, mu(), tau(), n(), alpha_level)
       })
-    })
+      
+      output$hpd_text <- renderText({
+        results[[1]]
+      })
+      
+      output$stats <- DT::renderDataTable({
+        df<-data.frame(
+          "Posterior Weights" = round(results[[2]],4),
+          "Posterior Means" = round(results[[3]],4),
+          "Posterior SDs" = round(results[[4]],4)
+        )
+        rownames(df) <- paste0("Posterior Component ", 1:nrow(df))
+        colnames(df) <- c("Posterior Weights","Posterior Means","Posterior SDs")
+        df
+      }, rownames = TRUE,options = list(pageLength = 5, scrollX = TRUE, autoWidth = TRUE))
+    }
   })
 }
 
 shinyApp(ui = ui, server = server)
+
