@@ -17,9 +17,10 @@ library(bslib)
 library(rootSolve)
 library(DT)
 
-# Define the hpdi function (same as your existing function)
+
 options(digits = 5)
-hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
+#defining the hpdi function
+rhpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
   options(scipen = 999)
   
   
@@ -113,31 +114,36 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
   
   x.max <- ifelse(max(x) > 0, ceiling(max(x)), floor(max(x)))
   
-  #---plotting of the posterior and respective likelihood and mixture priors---
-  plot(x, cmp, type = "l", col = "darkorange", lty = 2, lwd = 1,
+  #plotting of the posterior and respective likelihood and mixture priors---
+  plot(x, cmp, type = "l", col = "darkorange", lty = 2, lwd = 2,
        xlab = expression(theta), ylab = "Density", 
-       xlim = c(x.min, x.max), ylim = c(0, up.lim))
+       xlim = c(x.min, x.max), ylim = c(0, up.lim),
+       cex.lab = 1.5, font.lab = 1.8, col.lab = "black", cex.axis = 1.5, font.axis = 2, col.axis = "black")
+  
+  
+  axis(1, col.axis = "black", cex.axis = 1.5, font.axis = 2)
+  axis(2, col.axis = "black", cex.axis = 1.5, font.axis = 2)
   
   #add the likelihood
-  lines(x, lik, type = "l", lwd = 1, lty = 2, col = "darkblue")
+  lines(x, lik, type = "l", lwd = 2, lty = 2, col = "darkblue")
   
   lines(x, posterior_density, type = "l", lwd = 2, lty = 1, col = "black")
   
-  legend_labels <- c("Mixture prior density","Likelihood", 
+  legend_labels <- c("prior mixture density","Likelihood", 
                      "Posterior mixture density","HPD Interval")
   legend("topleft", lty = c(2,2,1,2),
-         legend = legend_labels, lwd = c(1,1,2,1),
-         col = c("darkorange","darkblue", "black","red"), bty = "n")
+         legend = legend_labels, lwd = c(2,2,2,2),
+         col = c("darkorange","darkblue", "black","red"), bty = "n", cex = 1.5, text.font = 1.8)
   
   hpd_segments <- function(hpd) {
     
     for (i in seq(1, length(hpd), by = 2)) {
       
-      segments(hpd[i], 0, hpd[i], fx(hpd[i]), col = "red", lwd = 1, lty = 2)
+      segments(hpd[i], 0, hpd[i], fx(hpd[i]), col = "red", lwd = 2, lty = 2)
       segments(hpd[i + 1], 0, hpd[i + 1], fx(hpd[i + 1]), col = "red", 
-               lwd = 1, lty = 2)
+               lwd = 2, lty = 2)
       segments(hpd[i], fx(hpd[i]), hpd[i + 1], fx(hpd[i + 1]), col = "red", 
-               lwd = 1, lty = 2)
+               lwd = 2, lty = 2)
     }
   }
   
@@ -164,12 +170,13 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
 }
 
 
+
 ui <- page_sidebar(
   title = "HPD Interval Computation",
   theme = bslib::bs_theme(bootswatch = "united"),
   
   sidebar = sidebar(
-    width = 400,
+    width = 500,
     tags$head(
       tags$style(HTML("
         .sidebar {
@@ -190,15 +197,13 @@ ui <- page_sidebar(
       font-weight: bold;
     }"),
     h4("Likelihood parameters"),
-    numericInput("mu", HTML("mean (&#956;)"), 0.78),
-    numericInput("tau", HTML("standard deviation (&#964;)"), 1),
-    numericInput("n", "sample size (n):", 20),
+    numericInput("mu", HTML("mean (&#956;)"), 3, min = 0, step = 1),
+    numericInput("tau", HTML("standard deviation (&#964;)"), 7, min = 0, step = 1),
+    numericInput("n", "sample size (n):", 40),
     h4("Prior parameters"),
-    p("(comma-separated)"),
-    textInput("prior_mus",  HTML("Prior means (&#956;)"), "0, 0, 0"),
-    textInput("prior_sds",  HTML("Prior standard deviations (&#964;)"), "0.1414214, 10, 1"),
-    textInput("weights", "weights:", "0.50, 0.46,0.04"),
-    numericInput("alpha_level", "alpha level:", 0.90, min = 0, max = 1, step = 0.05),
+    selectInput("num_prior_params", "Number of prior parameters:", choices = 1:10, selected = 2),
+    uiOutput("dynamic_prior_inputs"),
+    numericInput("alpha_level", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
     actionButton("compute", "Compute", class = "btn-lg btn-success"),
     class = "sidebar"
   ),
@@ -206,7 +211,7 @@ ui <- page_sidebar(
   navset_card_underline(
     # Panel with intro ----
     nav_panel("About",
-              p("The WebApp rHPDI is a web application that computes the highest posterior density interval (HPDI) for a given set of informative and vague prior parameters, weights, likelihood parameters and desired alpha level."),
+              p(tags$span(style = "color: blue;","The WebApp rHPDI is a web application that computes the highest posterior density interval (HPDI) for a given set of informative and vague prior parameters, weights, likelihood parameters and desired alpha level.")),
               h4("Inputs:"),
               tags$ul(
                 tags$li(HTML("prior means (&#956;)"), ": Informative and vague prior means."),
@@ -227,13 +232,13 @@ ui <- page_sidebar(
               )
     ),
     # Panel with plot ----
-    nav_panel("Visualization",         
+    nav_panel("Visualization",
               plotOutput("plot_hpd", width = "95%", height = "900px"),
               verbatimTextOutput("hpd_text")
     ),
     
     # Panel with summary ----
-    nav_panel("Summary", 
+    nav_panel("Summary",
               DT::dataTableOutput("stats")
     )
   )
@@ -242,43 +247,56 @@ ui <- page_sidebar(
 
 server <- function(input, output, session) {
   
-  parse_input <- function(input) {
-    as.numeric(unlist(strsplit(input, ",")))
-  }
-  
-  mu <- reactive(input$mu)
-  tau <- reactive(input$tau)
-  n <- reactive(input$n)
+  output$dynamic_prior_inputs <- renderUI({
+    num <- as.integer(input$num_prior_params)
+    
+    prior_inputs <- lapply(1:num, function(i) {
+      fluidRow(
+        column(4, numericInput(paste0("prior_mu_", i), paste("prior mean", i), 0, step = 1)),
+        column(4, numericInput(paste0("prior_sd_", i), paste("prior sd", i), 0.14142,min = 0.001, step = 1)),
+        column(4, numericInput(paste0("weight_", i), paste("weight", i), 1/i,min = 0, max = 1, step = 0.05))
+      )
+    })
+    
+    do.call(tagList, prior_inputs)
+  })
   
   observeEvent(input$compute, {
-    prior_mus <- parse_input(input$prior_mus)
-    prior_sds <- parse_input(input$prior_sds)
-    weights   <- parse_input(input$weights)
-    weights <- weights / sum(weights)
+    prior_mus <- sapply(1:input$num_prior_params, function(i) input[[paste0("prior_mu_", i)]])
+    prior_sds <- sapply(1:input$num_prior_params, function(i) input[[paste0("prior_sd_", i)]])
+    w <- sapply(1:input$num_prior_params, function(i) input[[paste0("weight_", i)]])
     
-    if (length(prior_mus) != length(prior_sds)) {
-      showNotification("Error: The number of prior means and standard deviations must be the same.",
-                       type = "error", col = "red")
+    if (length(prior_mus) != length(prior_sds) || length(prior_mus) != length(w) || length(prior_sds) != length(w)) {
+      showNotification("Error: Check that the length of prior means and standard deviations parameters must be EQUAL",
+                       type = "error", duration = 5)
+      return(NULL)
     }
     
-    if (sum(weights) != 1) {
+    
+    if (sum(w) != 1) {
       showNotification("Error: Check your inputs, the weights MUST add up to 1.",
-                       type = "error", col = "red")
+                       type = "error", duration = 5)
+      return(NULL)
     }
     
+    
+    mu <- input$mu
+    tau <- input$tau
+    n <- input$n
     priorPars <- matrix(c(prior_mus, prior_sds), nrow = 2, byrow = TRUE)
     alpha_level <- input$alpha_level
     
-    results <- tryCatch({
-      hpdi(priorPars, weights, mu(), tau(), n(), alpha_level)
-    }, error = function(e) {
-      showNotification("Error in computation: Check your inputs", type = "error", col = "red")
-      NULL
-    })
+    if (tau==0) {
+      showNotification("Error: Check your inputs, the standard deviation cannot be 0.",
+                       type = "error", duration = 5)
+      return(NULL)
+    }
+    
+    results <- rhpdi(priorPars, w, mu, tau, n, alpha_level)
     
     if (!is.null(results)) {
       output$plot_hpd <- renderPlot({
-        hpdi(priorPars, weights, mu(), tau(), n(), alpha_level)
+        rhpdi(priorPars, w, mu, tau, n, alpha_level)
       })
       
       output$hpd_text <- renderText({
@@ -286,18 +304,17 @@ server <- function(input, output, session) {
       })
       
       output$stats <- DT::renderDataTable({
-        df<-data.frame(
-          "Posterior Weights" = round(results[[2]],4),
-          "Posterior Means" = round(results[[3]],4),
-          "Posterior SDs" = round(results[[4]],4)
+        tb <- data.frame(
+          "Posterior Weights" = round(results[[2]], 4),
+          "Posterior Means" = round(results[[3]], 4),
+          "Posterior SDs" = round(results[[4]], 4)
         )
-        rownames(df) <- paste0("Posterior Component ", 1:nrow(df))
-        colnames(df) <- c("Posterior Weights","Posterior Means","Posterior SDs")
-        df
-      }, rownames = TRUE,options = list(pageLength = 5, scrollX = TRUE, autoWidth = TRUE))
+        rownames(tb) <- paste0("Posterior Component ", 1:nrow(tb))
+        colnames(tb) <- c("Posterior Weights", "Posterior Means", "Posterior SDs")
+        tb
+      }, rownames = TRUE, options = list(pageLength = 3, scrollX = TRUE, autoWidth = TRUE))
     }
   })
 }
 
 shinyApp(ui = ui, server = server)
-
