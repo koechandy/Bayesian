@@ -7,7 +7,6 @@ if (!requireNamespace("bslib", quietly = TRUE)) {
 if (!requireNamespace("rootSolve", quietly = TRUE)) {
   install.packages("rootSolve")
 }
-
 if (!requireNamespace("DT", quietly = TRUE)) {
   install.packages("DT")
 }
@@ -57,14 +56,12 @@ rhpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
     return(f = posterior_vals)
   }
   
-  # min_pr <- sum(w * (priorPars[1, ] - 3 * priorPars[2, ]))
-  # max_pr <- sum(w * (priorPars[1, ] + 3 * priorPars[2, ]))
-  
   min_post <- sum(post.w * (post.m - 3 * sqrt(post.var)))
   max_post <- sum(post.w * (post.m + 3 * sqrt(post.var)))
   
   min_lik <- mu - 3*tau
   max_lik <- mu + 3*tau
+
   
   x <- seq(min(c(min_post,min_lik)),max(c(max_post,max_lik)),by = 0.001)
   y <- seq(max(fx(x)), 0, by = -0.001)
@@ -74,7 +71,7 @@ rhpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
   my_alpha <- function(y) {
     
     roots <- rootSolve::uniroot.all(function(x) fx(x) - y, lower = min(x), 
-                                    upper = max(x),tol = 1e-10,maxiter = 10, 
+                                    upper = max(x),tol = 1e-10,maxiter = 1000, 
                                     trace = 0, n = 1000)
     
     num_roots <- length(roots)
@@ -129,8 +126,8 @@ rhpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
   
   lines(x, posterior_density, type = "l", lwd = 2, lty = 1, col = "black")
   
-  legend_labels <- c("prior mixture density","Likelihood", 
-                     "Posterior mixture density","HPD Interval")
+  legend_labels <- c("prior mixture density","likelihood", 
+                     "posterior mixture density","HPD Interval")
   legend("topleft", lty = c(2,2,1,2),
          legend = legend_labels, lwd = c(2,2,2,2),
          col = c("darkorange","darkblue", "black","red"), bty = "n", cex = 1.5, text.font = 1.8)
@@ -166,29 +163,20 @@ rhpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85) {
   }else {
     paste("No HPDI for", alpha_level * 100, "%")
   }
-  return(list(hpd_string,post.w,post.m,post.s))
+  return(list(hpdi=hpd_string,posterior.weights=post.w,posterior.mean=post.m,posterior.sd=post.s))
 }
 
 
 
 ui <- page_sidebar(
-  title = "HPD Interval Computation",
+  title = "HPD Interval Computation for posterior mixture densities",
   theme = bslib::bs_theme(bootswatch = "united"),
   
   sidebar = sidebar(
     width = 500,
     tags$head(
-      tags$style(HTML("
-        .sidebar {
-          background-color: #f0f0f0;
-          padding: 15px;
-          border-radius: 5px;
-        }
-        .well {
-          background-color: #f0f0f0;
-          border: 1px solid #ddd;
-        }
-      "))
+      tags$script(type = "text/javascript", 
+                  src = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js?config=TeX-MML-AM_CHTML")
     ),
     tags$style(type = "text/css", "#hpd_text {
       color: blue;
@@ -197,9 +185,9 @@ ui <- page_sidebar(
       font-weight: bold;
     }"),
     h4("Likelihood parameters"),
-    numericInput("mu", HTML("mean (&#956;)"), 3, min = 0, step = 1),
-    numericInput("tau", HTML("standard deviation (&#964;)"), 7, min = 0, step = 1),
-    numericInput("n", "sample size (n):", 40),
+    numericInput("mu", HTML("mean, (\\(\\bar{y}\\))"), 0, min = 0, step = 0.1),
+    numericInput("tau", HTML("standard deviation, (\\(\\sigma\\))"), 1, min = 0, step = 0.1),
+    numericInput("n", "sample size, (n):", 10),
     h4("Prior parameters"),
     selectInput("num_prior_params", "Number of prior parameters:", choices = 1:10, selected = 2),
     uiOutput("dynamic_prior_inputs"),
@@ -211,16 +199,23 @@ ui <- page_sidebar(
   navset_card_underline(
     # Panel with intro ----
     nav_panel("About",
-              p(tags$span(style = "color: blue;","The WebApp rHPDI is a web application that computes the highest posterior density interval (HPDI) for a given set of informative and vague prior parameters, weights, likelihood parameters and desired alpha level.")),
+              p(
+                tags$span(
+                  style = "color: blue;",
+                  "The WebApp rHPDI is a web application that computes the highest posterior density interval (HPDI) 
+                  for posteriors obtained under a mixture prior with up to \\(x_i\\) components for normal outcomes. 
+                  Each mixture prior component is of the form \\(N(\\mu_i, \\tau_i)\\) and has weight, \\(w_i\\)."
+                )),
               h4("Inputs:"),
               tags$ul(
-                tags$li(HTML("prior means (&#956;)"), ": Informative and vague prior means."),
-                tags$li(HTML("prior standard deviation (&#964;)"), ": respective informative and vague prior standard deviations"),
-                tags$li("weights (w): a vector of weights corresponding to the prior components"),
-                tags$li(HTML("mean (&#956;)"), ": The mean of the likelihood."),
-                tags$li(HTML("tau (&#964;)"), ": The standard deviation of the likelihood."),
-                tags$li("n: The sample size from the likelihood."),
-                tags$li("alpha level: The desired level of the HPDI, typically set to 0.90.")
+                tags$li("Number of components: number of mixture densities"),
+                tags$li(HTML("prior means (\\(\\mu_i\\))")),
+                tags$li(HTML("prior standard deviation (\\(\\tau_i\\))")),
+                tags$li(HTML("weights (\\(w_i\\)): Note that \\(\\sum w_i = 1\\)")),
+                tags$li(HTML("\\(\\bar{y}\\): data outcome (mean)")),
+                tags$li(HTML("\\(\\sigma\\): data standard deviation")),
+                tags$li(HTML("n : sample size of the data.")),
+                tags$li(HTML("\\(\\alpha\\), alpha level"))
               ),
               h4("Outputs:"),
               tags$ul(
@@ -252,9 +247,9 @@ server <- function(input, output, session) {
     
     prior_inputs <- lapply(1:num, function(i) {
       fluidRow(
-        column(4, numericInput(paste0("prior_mu_", i), paste("prior mean", i), 0, step = 1)),
-        column(4, numericInput(paste0("prior_sd_", i), paste("prior sd", i), 0.14142,min = 0.001, step = 1)),
-        column(4, numericInput(paste0("weight_", i), paste("weight", i), 1/i,min = 0, max = 1, step = 0.05))
+        column(4, numericInput(paste0("prior_mu_", i), withMathJax("prior \\(\\mu_", i, "\\)"), 0, step = 0.1)),
+        column(4, numericInput(paste0("prior_sd_", i), withMathJax("prior \\(\\tau_", i, "\\)"), round(sqrt(1/20),4) ,min = 0, step = 1)),
+        column(4, numericInput(paste0("weight_", i),   withMathJax("\\(w_",i,"\\)"), round(1/num,2),min = 0, max = 1, step = 0.05))
       )
     })
     
