@@ -189,7 +189,7 @@ ui <- page_sidebar(
     numericInput("tau", HTML("standard deviation, (\\(\\sigma\\))"), 1, min = 0, step = 0.1),
     numericInput("n", "sample size, (n):", 10),
     h4("Prior parameters"),
-    selectInput("num_prior_params", "Number of prior parameters:", choices = 1:10, selected = 2),
+    selectInput("num_prior_params", "Number of components, \\(K\\):", choices = 1:10, selected = 2),
     uiOutput("dynamic_prior_inputs"),
     numericInput("alpha_level", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
     actionButton("compute", "Compute", class = "btn-lg btn-success"),
@@ -203,19 +203,20 @@ ui <- page_sidebar(
                 tags$span(
                   style = "color: blue;",
                   "The WebApp rHPDI is a web application that computes the highest posterior density interval (HPDI) 
-                  for posteriors obtained under a mixture prior with up to \\(x_i\\) components for normal outcomes. 
-                  Each mixture prior component is of the form \\(N(\\mu_i, \\tau_i)\\) and has weight, \\(w_i\\)."
+                  for posteriors obtained under a mixture prior with up to \\(K\\) components for normal outcomes, Berger & Berliner (1986), Schmidli et al. (2014). 
+                  Each mixture prior component is of the form \\(N(\\mu_i, \\tau_i)\\) and has weight \\(w_i\\) for which
+                  \\(i=1,\\ldots,K\\)."
                 )),
               h4("Inputs:"),
               tags$ul(
-                tags$li("Number of components: number of mixture densities"),
+                tags$li("Number of components \\(K\\): number of mixture densities"),
                 tags$li(HTML("prior means (\\(\\mu_i\\))")),
                 tags$li(HTML("prior standard deviation (\\(\\tau_i\\))")),
                 tags$li(HTML("weights (\\(w_i\\)): Note that \\(\\sum w_i = 1\\)")),
                 tags$li(HTML("\\(\\bar{y}\\): data outcome (mean)")),
                 tags$li(HTML("\\(\\sigma\\): data standard deviation")),
                 tags$li(HTML("n : sample size of the data.")),
-                tags$li(HTML("\\(\\alpha\\), alpha level"))
+                tags$li(HTML("\\(\\alpha\\): alpha level"))
               ),
               h4("Outputs:"),
               tags$ul(
@@ -224,6 +225,21 @@ ui <- page_sidebar(
                 tags$li("posterior weights"),
                 tags$li("posterior means."),
                 tags$li("posterior variances")
+              ),
+              # Footer section for references
+              tags$hr(),
+              h6("References"),
+              tags$ul(
+                tags$li(
+                  "Berger, J., & Berliner, L. M. (1986). Robust bayes and empirical bayes analysis with ϵ-contaminated priors. 
+            The Annals of Statistics, 14 (2), 461–486. ",
+                  tags$a(href = "http://www.jstor.org/stable/2241230", "http://www.jstor.org/stable/2241230", target = "http://www.jstor.org/stable/2241230")
+                ),
+                tags$li(
+                  "Schmidli, H., Gsteiger, S., Roychoudhury, S., O’Hagan, A., Spiegelhalter, D., & Neuenschwander,B. (2014). 
+            Robust meta-analytic-predictive priors in clinical trials with historical control information. Biometrics, 70, 1023–1032. ",
+                  tags$a(href = "https://doi.org/10.1111/biom.12242", "https://doi.org/10.1111/biom.12242", target = "https://doi.org/10.1111/biom.12242")
+                )
               )
     ),
     # Panel with plot ----

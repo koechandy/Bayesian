@@ -91,18 +91,24 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-2, 2
     return(alpha)
   }
   
+  # al<-sapply(y, my_alpha)
+  # result_df <- data.frame(y = y, alpha = al)
+  # yn<-result_df$y[which.min(abs(result_df$alpha-alpha_level))]
+  # hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - yn, lower = min(x), upper = max(x),tol = 1e-10,maxiter = 10000, trace = 0, n = 100000)
+  # 
+
   objectivefx <- function(y, ...) {
     alpha <- my_alpha(y)
     abs(alpha - alpha_level)
   }
-  
+
   opt.res <- optim(0, objectivefx, method = "Brent", lower = min(y), upper = max(y),
                    priorPars = priorPars, w = w, mu = mu, tau = tau, n = n,
                    postPars = postPars, alpha_level = alpha_level)
-  
+
   hpd <- rootSolve::uniroot.all(function(x) fx(x, priorPars, w, mu, tau, n)$f - opt.res$par, lower = min(x), upper = max(x),tol = 1e-10,maxiter = 10000, trace = 0, n = 100000)
-  
-  
+
+
   cmp <- 0
   
   for (i in 1:length(w)) {
@@ -163,15 +169,15 @@ hpdi <- function(priorPars, w, mu, tau, n, alpha_level = 0.85, x_range = c(-2, 2
 
 ui <- fluidPage(
   navbarPage(
-    title = "HPD Interval Computation",
-    theme = bslib::bs_theme(bootswatch = "united"),
-    
-    tabPanel(
-      "Two prior components",
-      fluidPage(
-        titlePanel("HPD Interval for only two prior components"),
-        tags$head(
-          tags$style(HTML("
+  title = "HPD Interval Computation",
+  theme = bslib::bs_theme(bootswatch = "united"),
+  
+  tabPanel(
+    "Two prior components",
+    fluidPage(
+      titlePanel("HPD Interval for only two prior components"),
+      tags$head(
+        tags$style(HTML("
           .sidebar {
             background-color: #101010;
             padding: 15px;
@@ -182,45 +188,45 @@ ui <- fluidPage(
             border: 1px solid #ddd;
           }
         "))
-        ),
-        tags$style(type = "text/css", "#hpd_text_fixed { 
+      ),
+      tags$style(type = "text/css", "#hpd_text_fixed { 
              color: blue; 
              text-align: center; 
              font-size: 24px; 
              font-weight: bold;
              }"),
-        sidebarLayout(
-          sidebarPanel(
-            h4("Likelihood parameters"),
-            numericInput("mu", HTML("mean (&#956;)"), 0.78),
-            numericInput("tau", HTML("standard deviation (&#964;)"), 1),
-            numericInput("n", "sample size:", 20),
-            numericInput("alpha_level", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
-            h4("Prior parameters"),
-            numericInput("prior11", HTML("Prior &#956;<sub>1</sub>:"), 0, step = 0.1),
-            numericInput("prior12", HTML("Prior &#956;<sub>2</sub>:"), 0, step = 0.1),
-            numericInput("prior21",  HTML("Prior &#963;<sub>1</sub>:"), 0.1414214),
-            numericInput("prior22",  HTML("Prior &#963;<sub>2</sub>:"), 10),
-            sliderInput("w1", "Prior weight 1:", value = 0.5, min = 0, max = 1),
-            sliderInput("x_range", "Range of X-values:", min = -10, max = 10, value = c(-2, 2), step = .5),
-            actionButton("compute_fixed", "Compute", class = "btn-lg btn-success"),
-            class = "sidebar" 
-          ),
-          mainPanel(
-            plotOutput("plot_fixed", width = "100%", height = "900px"),
-            verbatimTextOutput("hpd_text_fixed")
-          )
+      sidebarLayout(
+        sidebarPanel(
+          h4("Likelihood parameters"),
+          numericInput("mu", HTML("mean (&#956;)"), 0.78),
+          numericInput("tau", HTML("standard deviation (&#964;)"), 1),
+          numericInput("n", "sample size:", 20),
+          numericInput("alpha_level", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
+          h4("Prior parameters"),
+          numericInput("prior11", HTML("Prior &#956;<sub>1</sub>:"), 0, step = 0.1),
+          numericInput("prior12", HTML("Prior &#956;<sub>2</sub>:"), 0, step = 0.1),
+          numericInput("prior21",  HTML("Prior &#963;<sub>1</sub>:"), 0.1414214),
+          numericInput("prior22",  HTML("Prior &#963;<sub>2</sub>:"), 10),
+          sliderInput("w1", "Prior weight 1:", value = 0.5, min = 0, max = 1),
+          sliderInput("x_range", "Range of X-values:", min = -10, max = 10, value = c(-2, 2), step = .5),
+          actionButton("compute_fixed", "Compute", class = "btn-lg btn-success"),
+          class = "sidebar" 
+        ),
+        mainPanel(
+          plotOutput("plot_fixed", width = "100%", height = "900px"),
+          verbatimTextOutput("hpd_text_fixed")
         )
       )
-    ),
-    
-    tabPanel(
-      "More than two prior components",
-      fluidPage(
-        titlePanel("HPD Interval for more than two prior components"),
-        
-        tags$head(
-          tags$style(HTML("
+    )
+  ),
+  
+  tabPanel(
+    "More than two prior components",
+    fluidPage(
+      titlePanel("HPD Interval for more than two prior components"),
+
+      tags$head(
+        tags$style(HTML("
           .sidebar {
             background-color: #f0f0f0;
             padding: 15px;
@@ -231,42 +237,40 @@ ui <- fluidPage(
             border: 1px solid #ddd;
           }
         "))
-        ),
-        tags$style(type = "text/css", "#hpd_text_gen { 
+      ),
+      tags$style(type = "text/css", "#hpd_text_gen { 
              color: blue; 
              text-align: center; 
              font-size: 24px; 
              font-weight: bold;
              }"),
-        sidebarLayout(
-          sidebarPanel(
-            h4("Likelihood parameters"),
-            numericInput("mu_gen", HTML("mean (&#956;)"), 0.78),
-            numericInput("tau_gen", HTML("standard deviation (&#964;)"), 1),
-            numericInput("n_gen", "sample size:", 20),
-            numericInput("alpha_level_gen", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
-            h4("Prior parameters (comma-separated)"),
-            textInput("prior_mus",  HTML("Prior means (&#956;)"), "0, 0, 0"),
-            textInput("prior_sds",  HTML("Prior standard deviations (&#964;)"), "0.1414214, 10, 1"),
-            textInput("weights", "weights:", "0.50, 0.46,0.04"),
-            sliderInput("x_range_gen", "Range of X-values:", min = -15, max = 15, value = c(-5, 5), step = 1),
-            actionButton("compute_gen", "Compute", class = "btn-lg btn-success"),
-            class = "sidebar" 
-          ),
-          mainPanel(
-            plotOutput("plot_gen", width = "100%", height = "900px"),
-            verbatimTextOutput("hpd_text_gen")
-          )
+      sidebarLayout(
+        sidebarPanel(
+          h4("Likelihood parameters"),
+          numericInput("mu_gen", HTML("mean (&#956;)"), 0.78),
+          numericInput("tau_gen", HTML("standard deviation (&#964;)"), 1),
+          numericInput("n_gen", "sample size:", 20),
+          numericInput("alpha_level_gen", "alpha level:", 0.85, min = 0, max = 1, step = 0.05),
+          h4("Prior parameters (comma-separated)"),
+          textInput("prior_mus",  HTML("Prior means (&#956;)"), "0, 0"),
+          textInput("prior_sds",  HTML("Prior standard deviations (&#964;)"), "0.1414214, 10"),
+          textInput("weights", "weights:", "0.5, 0.5"),
+          sliderInput("x_range_gen", "Range of X-values:", min = -50, max = 50, value = c(-5, 5), step = 1),
+          actionButton("compute_gen", "Compute", class = "btn-lg btn-success"),
+          class = "sidebar" 
+        ),
+        mainPanel(
+          plotOutput("plot_gen", width = "100%", height = "900px"),
+          verbatimTextOutput("hpd_text_gen")
         )
       )
     )
   )
 )
+)
 
 
 server <- function(input, output, session) {
-  
-  
   #-----------------------------Fixed Parameters---------------------------
   w1 <- reactive({
     input$w1
@@ -305,7 +309,7 @@ server <- function(input, output, session) {
   parse_input <- function(input) {
     as.numeric(unlist(strsplit(input, ",")))
   }
-  
+
   #-----------------------------Generalized Parameters---------------------------
   observeEvent(input$compute_gen, {
     prior_mus <- parse_input(input$prior_mus)
@@ -319,9 +323,9 @@ server <- function(input, output, session) {
                        type = "error",col="red")
       return()
     }
-    
+ 
     priorPars <- matrix(c(prior_mus, prior_sds), nrow = 2, byrow = TRUE)
-    mu  <- input$mu_gen
+        mu  <- input$mu_gen
     tau <- input$tau_gen
     n   <- input$n_gen
     alpha_level <- input$alpha_level_gen
